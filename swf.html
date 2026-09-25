@@ -30,7 +30,10 @@
             #cells a { position: absolute; pointer-events: auto; padding: 0; box-sizing: border-box; }
             #cells a:hover { outline: 2px solid #8cf; outline-offset: -2px; background: rgba(136, 204, 255, 0.1); }
             #player .error { margin: 16px; color: #f88; }
+            #player .hint { margin: 16px; color: #888; }
             #player ruffle-player { width: 100%; height: 100%; }
+            /* In grid views the player sits above the cells but lets clicks through, except on its unmute button */
+            #player.grid ruffle-player { position: relative; z-index: 1; pointer-events: none; }
         </style>
     </head>
 
@@ -55,7 +58,8 @@
             const params = new URLSearchParams(location.search)
             const tree = await fetch('assets/swf/swf.json').then(res => res.json())
             const leaves = nodes => nodes.flatMap(node => node.children ? leaves(node.children) : [node])
-            const file = params.get('file') || leaves(tree)[0].source
+            // Nothing is loaded until a file is picked
+            const file = params.get('file')
 
             // Layers the game hides at runtime (collision maps etc.) are hidden unless ?layers=all
             const showLayers = params.get('layers') === 'all'
@@ -88,7 +92,8 @@
 
             // The file list's scroll position and open folders are kept across page loads, so it stays put
             // when switching files (even if the new file fails to load)
-            const saved = (() => {
+            // Opening the page without a file starts with every folder collapsed
+            const saved = file && (() => {
                 try {
                     return JSON.parse(sessionStorage.getItem('swf-nav'))
                 } catch {
@@ -152,6 +157,17 @@
                     details.open = query ? matches : openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
                 })
             })
+
+            if (!file) {
+                const p = document.createElement('p')
+
+                p.className = 'hint'
+                p.textContent = 'Pick a file to load it'
+                document.getElementById('player').replaceChildren(p)
+
+                // Module scripts can't return early, so wait forever instead of loading anything
+                await new Promise(() => {})
+            }
 
             function showError(error) {
                 const p = document.createElement('p')
@@ -275,6 +291,19 @@
             const container = document.getElementById('player')
 
             container.appendChild(player)
+
+            // Ruffle's "click to unmute" overlay covers the whole stage, so shrink it to a button in the corner
+            const unmuteStyle = document.createElement('style')
+
+            unmuteStyle.textContent = `
+                #unmute-overlay { inset: auto 12px 12px auto; width: 48px; height: 48px; border-radius: 8px; overflow: hidden; pointer-events: auto; }
+                #unmute-overlay .background { opacity: 0.6; }
+                #unmute-overlay .icon { width: 70%; height: 70%; }
+                #unmute-text { display: none; }
+            `
+            player.shadowRoot.appendChild(unmuteStyle)
+            player.shadowRoot.getElementById('unmute-overlay')?.setAttribute('title', 'Click to unmute')
+            container.classList.toggle('grid', !!grid)
 
             // Grid views get a clickable cell over each element or frame, leading to its own view
             if (grid) {
