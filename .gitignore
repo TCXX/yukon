@@ -127,3 +127,5 @@ assets/media/**
 assets/.gitignore
 
 assets/desktop.ini
+*.swf
+/assets/swf

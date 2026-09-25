@@ -1,0 +1,257 @@
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>SWF Viewer</title>
+
+        <!-- Ruffle -->
+        <script src="https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle/ruffle.min.js"></script>
+
+        <style>
+            html, body { margin: 0; height: 100%; background: #1a1a1a; color: #eee; font-family: sans-serif; }
+            [hidden] { display: none !important; }
+            a { color: #8cf; }
+            a.active { color: #fff; font-weight: bold; text-decoration: none; }
+            main { height: 100%; display: flex; }
+            nav, aside { overflow-y: auto; border-right: 1px solid #333; font-size: 13px; }
+            nav { width: 200px; flex-shrink: 0; }
+            aside { width: 260px; flex-shrink: 0; }
+            nav h3, aside h3 { margin: 12px 12px 4px; font-size: 11px; text-transform: uppercase; color: #888; }
+            nav input, aside input { box-sizing: border-box; width: calc(100% - 24px); margin: 8px 12px; padding: 4px 6px; background: #111; color: #eee; border: 1px solid #444; }
+            nav summary { padding: 6px 12px 3px; cursor: pointer; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            nav details { padding-left: 12px; }
+            nav summary { margin-left: -12px; }
+            nav a, aside a { display: block; padding: 3px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            nav a.active, aside a.active { background: #2a3a4a; }
+            #player { flex: 1; min-width: 0; }
+            #player .error { margin: 16px; color: #f88; }
+            #player ruffle-player { width: 100%; height: 100%; }
+        </style>
+    </head>
+
+    <body>
+        <!-- Files are listed in assets/swf/swf.json, generated from the folder by utils/swf-list.js -->
+        <main>
+            <nav>
+                <input type="search" placeholder="Filter files">
+            </nav>
+
+            <aside>
+                <input type="search" placeholder="Filter elements">
+                <div id="views"></div>
+            </aside>
+
+            <div id="player"></div>
+        </main>
+
+        <script type="module">
+            import { readSwf, symbolClasses, scenes, frames, buildScene, buildElement, buildFrames, buildAll } from './utils/swf-stage.js'
+
+            const params = new URLSearchParams(location.search)
+            const tree = await fetch('assets/swf/swf.json').then(res => res.json())
+            const leaves = nodes => nodes.flatMap(node => node.children ? leaves(node.children) : [node])
+            const file = params.get('file') || leaves(tree)[0].source
+
+            const href = (file, view, frame) => `?file=${encodeURIComponent(file)}` + (view ? `&view=${view}` : '') + (frame ? `&frame=${frame}` : '')
+
+            function link(parent, text, url, active, title) {
+                const a = document.createElement('a')
+
+                a.href = url
+                a.textContent = text
+                a.title = title || text
+                a.classList.toggle('active', active)
+                parent.appendChild(a)
+
+                return a
+            }
+
+            function heading(parent, text) {
+                const h = document.createElement('h3')
+
+                h.textContent = text
+                parent.appendChild(h)
+            }
+
+            const nav = document.querySelector('nav')
+
+            heading(nav, `Files (${leaves(tree).length})`)
+
+            // The file list's scroll position and open folders are kept across page loads, so it stays put
+            // when switching files (even if the new file fails to load)
+            const saved = (() => {
+                try {
+                    return JSON.parse(sessionStorage.getItem('swf-nav'))
+                } catch {
+                    return null
+                }
+            })()
+
+            const openFolders = new Set(saved?.open)
+
+            // Folders become collapsible sections, opened when they contain the current file or were left open
+            function addFiles(parent, nodes, prefix = '') {
+                for (const node of nodes) {
+                    if (!node.children) {
+                        link(parent, node.label, href(node.source), node.source === file, node.source)
+                        continue
+                    }
+
+                    const details = document.createElement('details')
+                    const summary = document.createElement('summary')
+
+                    details.dataset.path = prefix + node.label
+                    summary.textContent = `${node.label} (${leaves(node.children).length})`
+                    summary.title = summary.textContent
+                    details.appendChild(summary)
+                    addFiles(details, node.children, details.dataset.path + '/')
+                    details.open = openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
+                    parent.appendChild(details)
+                }
+            }
+
+            addFiles(nav, tree)
+
+            if (saved) {
+                nav.scrollTop = saved.scroll
+            } else {
+                nav.querySelector('a.active')?.scrollIntoView({ block: 'center' })
+            }
+
+            addEventListener('pagehide', () => {
+                // While filtering, folders are opened by the filter, so keep the previous set
+                const open = nav.querySelector('input').value
+                    ? [...openFolders]
+                    : [...nav.querySelectorAll('details[open]')].map(details => details.dataset.path)
+
+                try {
+                    sessionStorage.setItem('swf-nav', JSON.stringify({ scroll: nav.scrollTop, open }))
+                } catch {}
+            })
+
+            const fileLinks = [...nav.querySelectorAll('a')]
+            const folders = [...nav.querySelectorAll('details')]
+
+            nav.querySelector('input').addEventListener('input', e => {
+                const query = e.target.value.toLowerCase()
+
+                fileLinks.forEach(a => a.hidden = !(a.textContent + a.title).toLowerCase().includes(query))
+                folders.forEach(details => {
+                    const matches = !!details.querySelector('a:not([hidden])')
+
+                    details.hidden = !matches
+                    details.open = query ? matches : openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
+                })
+            })
+
+            function showError(error) {
+                const p = document.createElement('p')
+
+                p.className = 'error'
+                p.textContent = `Could not load ${file}: ${error.message}`
+                document.getElementById('player').replaceChildren(p)
+
+                throw error
+            }
+
+            const path = file.split('/').map(encodeURIComponent).join('/')
+            let swf
+
+            try {
+                const res = await fetch(`assets/swf/${path}`)
+
+                if (!res.ok) {
+                    throw new Error(`${res.status} ${res.statusText}`)
+                }
+
+                swf = await readSwf(await res.arrayBuffer())
+            } catch (error) {
+                showError(error)
+            }
+            const sceneList = scenes(swf)
+            const elements = symbolClasses(swf.tags).filter(s => s.id !== 0)
+
+            // Code-driven files usually have an empty main timeline, so start on their elements
+            const view = params.get('view') || (elements.length ? 'all' : 'scene-0')
+
+            const views = document.getElementById('views')
+
+            heading(views, 'Scenes')
+            sceneList.forEach((scene, i) => {
+                const frames = scene.end - scene.start
+                link(views, `${scene.name} (${frames} frame${frames === 1 ? '' : 's'})`, href(file, `scene-${i}`), view === `scene-${i}`)
+            })
+
+            heading(views, `Elements (${elements.length})`)
+
+            if (elements.length) {
+                link(views, 'All elements', href(file, 'all'), view === 'all')
+            }
+
+            const elementLinks = elements.map(({ id, name }) => {
+                const { count } = frames(swf, id)
+                const text = name.split('.').pop() + (count > 1 ? ` · ${count}f` : '')
+
+                return link(views, text, href(file, id), view === String(id), `${name} (#${id})`)
+            })
+
+            // Multi-frame elements (catalog pages, button states, animations) can be viewed frame by frame
+            const selected = elements.find(s => String(s.id) === view)
+            const frameInfo = selected ? frames(swf, selected.id) : { count: 1, labels: [] }
+            const frame = params.get('frame') || (frameInfo.count > 1 ? 'all' : 'play')
+
+            if (frameInfo.count > 1) {
+                const section = document.createElement('div')
+
+                heading(section, `Frames of ${selected.name.split('.').pop()}`)
+                link(section, 'All frames', href(file, view, 'all'), frame === 'all')
+                link(section, 'Play', href(file, view, 'play'), frame === 'play')
+
+                for (let i = 0; i < frameInfo.count; i++) {
+                    const labels = frameInfo.labels.filter(l => l.frame === i).map(l => l.name)
+                    link(section, `Frame ${i + 1}` + (labels.length ? ` (${labels.join(', ')})` : ''), href(file, view, i + 1), frame === String(i + 1))
+                }
+
+                views.prepend(section)
+            }
+
+            document.querySelector('aside input').addEventListener('input', e => {
+                const query = e.target.value.toLowerCase()
+
+                elementLinks.forEach(a => a.hidden = !a.title.toLowerCase().includes(query))
+            })
+
+            document.querySelector('aside .active')?.scrollIntoView({ block: 'center' })
+
+            let data
+
+            try {
+                if (view === 'all') {
+                    data = buildAll(swf)
+                } else if (view.startsWith('scene-')) {
+                    data = buildScene(swf, sceneList[Number(view.slice(6))] || sceneList[0])
+                } else if (frame === 'all') {
+                    data = buildFrames(swf, Number(view))
+                } else {
+                    data = buildElement(swf, Number(view), frame === 'play' ? null : Number(frame) - 1)
+                }
+            } catch (error) {
+                showError(error)
+            }
+
+            const player = window.RufflePlayer.newest().createPlayer()
+
+            document.getElementById('player').appendChild(player)
+
+            player.load({
+                data,
+                allowScriptAccess: false,
+                autoplay: 'on',
+                splashScreen: false
+            })
+        </script>
+    </body>
+
+</html>

@@ -32,6 +32,16 @@ let config = {
         devMiddleware: {
             writeToDisk: true
         },
+        // SWF viewer file list, rescanned on every request
+        setupMiddlewares: (middlewares) => {
+            middlewares.unshift({
+                name: 'swf-list',
+                path: '/assets/swf/swf.json',
+                middleware: (req, res) => res.json(require('./utils/swf-list')())
+            })
+
+            return middlewares
+        },
         proxy: [
             {
                 context: '/world/login',
