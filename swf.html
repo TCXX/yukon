@@ -25,7 +25,10 @@
             nav summary { margin-left: -12px; }
             nav a, aside a { display: block; padding: 3px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             nav a.active, aside a.active { background: #2a3a4a; }
-            #player { flex: 1; min-width: 0; }
+            #player { flex: 1; min-width: 0; position: relative; }
+            #cells { position: absolute; inset: 0; pointer-events: none; }
+            #cells a { position: absolute; pointer-events: auto; padding: 0; box-sizing: border-box; }
+            #cells a:hover { outline: 2px solid #8cf; outline-offset: -2px; background: rgba(136, 204, 255, 0.1); }
             #player .error { margin: 16px; color: #f88; }
             #player ruffle-player { width: 100%; height: 100%; }
         </style>
@@ -47,14 +50,18 @@
         </main>
 
         <script type="module">
-            import { readSwf, symbolClasses, scenes, frames, buildScene, buildElement, buildFrames, buildAll } from './utils/swf-stage.js'
+            import { readSwf, hideLayers, symbolClasses, scenes, frames, buildScene, buildElement, buildFrames, buildAll } from './utils/swf-stage.js'
 
             const params = new URLSearchParams(location.search)
             const tree = await fetch('assets/swf/swf.json').then(res => res.json())
             const leaves = nodes => nodes.flatMap(node => node.children ? leaves(node.children) : [node])
             const file = params.get('file') || leaves(tree)[0].source
 
-            const href = (file, view, frame) => `?file=${encodeURIComponent(file)}` + (view ? `&view=${view}` : '') + (frame ? `&frame=${frame}` : '')
+            // Layers the game hides at runtime (collision maps etc.) are hidden unless ?layers=all
+            const showLayers = params.get('layers') === 'all'
+
+            const href = (file, view, frame, layers = showLayers, page) => `?file=${encodeURIComponent(file)}` + (view ? `&view=${view}` : '')
+                + (frame ? `&frame=${frame}` : '') + (page ? `&page=${page}` : '') + (layers ? '&layers=all' : '')
 
             function link(parent, text, url, active, title) {
                 const a = document.createElement('a')
@@ -167,6 +174,8 @@
                 }
 
                 swf = await readSwf(await res.arrayBuffer())
+
+                if (!showLayers) swf = hideLayers(swf)
             } catch (error) {
                 showError(error)
             }
@@ -178,6 +187,12 @@
 
             const views = document.getElementById('views')
 
+            if (showLayers || swf.hiddenLayers) {
+                heading(views, 'Layers')
+                link(views, showLayers ? 'Hide runtime-hidden layers' : `Show ${swf.hiddenLayers} hidden layer${swf.hiddenLayers === 1 ? '' : 's'}`,
+                    href(file, params.get('view'), params.get('frame'), !showLayers, params.get('page')), false)
+            }
+
             heading(views, 'Scenes')
             sceneList.forEach((scene, i) => {
                 const frames = scene.end - scene.start
@@ -186,9 +201,12 @@
 
             heading(views, `Elements (${elements.length})`)
 
-            if (elements.length) {
-                link(views, 'All elements', href(file, 'all'), view === 'all')
-            }
+            // The "all" grid is split into pages of this many elements, as rendering them all at once is slow
+            const pageSize = 20
+            const page = Math.max(1, Number(params.get('page')) || 1)
+
+            // Page links are added once the grid is built and its page count is known
+            const allLink = elements.length ? link(views, 'All elements', href(file, 'all'), view === 'all') : null
 
             const elementLinks = elements.map(({ id, name }) => {
                 const { count } = frames(swf, id)
@@ -225,15 +243,27 @@
 
             document.querySelector('aside .active')?.scrollIntoView({ block: 'center' })
 
-            let data
+            let data, grid
 
             try {
                 if (view === 'all') {
-                    data = buildAll(swf)
+                    grid = buildAll(swf, page - 1, pageSize)
+
+                    if (grid.pages > 1) {
+                        allLink.textContent = `All elements (${page}/${grid.pages})`
+                        allLink.classList.remove('active')
+
+                        for (let i = grid.pages; i >= 1; i--) {
+                            const a = link(views, `Page ${i}`, href(file, 'all', null, showLayers, i), page === i)
+
+                            a.style.paddingLeft = '24px'
+                            allLink.after(a)
+                        }
+                    }
                 } else if (view.startsWith('scene-')) {
                     data = buildScene(swf, sceneList[Number(view.slice(6))] || sceneList[0])
                 } else if (frame === 'all') {
-                    data = buildFrames(swf, Number(view))
+                    grid = buildFrames(swf, Number(view))
                 } else {
                     data = buildElement(swf, Number(view), frame === 'play' ? null : Number(frame) - 1)
                 }
@@ -242,11 +272,41 @@
             }
 
             const player = window.RufflePlayer.newest().createPlayer()
+            const container = document.getElementById('player')
 
-            document.getElementById('player').appendChild(player)
+            container.appendChild(player)
+
+            // Grid views get a clickable cell over each element or frame, leading to its own view
+            if (grid) {
+                const cells = document.createElement('div')
+
+                cells.id = 'cells'
+                container.appendChild(cells)
+
+                const links = grid.cells.map(cell => cell.frame === undefined
+                    ? link(cells, '', href(file, cell.id), false, `${cell.name} (#${cell.id})`)
+                    : link(cells, '', href(file, view, cell.frame + 1), false, `Frame ${cell.frame + 1}`))
+
+                // Ruffle scales the stage to fit the player and centres it
+                const layout = () => {
+                    const scale = Math.min(player.clientWidth / grid.width, player.clientHeight / grid.height)
+                    const left = (player.clientWidth - grid.width * scale) / 2
+                    const top = (player.clientHeight - grid.height * scale) / 2
+
+                    grid.cells.forEach((cell, i) => Object.assign(links[i].style, {
+                        left: `${left + cell.x * scale}px`,
+                        top: `${top + cell.y * scale}px`,
+                        width: `${cell.width * scale}px`,
+                        height: `${cell.height * scale}px`
+                    }))
+                }
+
+                layout()
+                new ResizeObserver(layout).observe(player)
+            }
 
             player.load({
-                data,
+                data: grid ? grid.data : data,
                 allowScriptAccess: false,
                 autoplay: 'on',
                 splashScreen: false

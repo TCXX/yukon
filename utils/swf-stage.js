@@ -721,8 +721,11 @@ export function buildFrames(swf, id) {
     return grid
 }
 
-/** Every exported element laid out in a grid, largest first, each stopped on its first frame. Cells have the element's `id` and `name`. */
-export function buildAll(swf) {
+/**
+ * Exported elements laid out in a grid, largest first, each stopped on its first frame. Cells have the element's `id` and `name`.
+ * Only one page of `pageSize` elements is placed, since rendering hundreds at once is slow. Returns the page count as `pages`.
+ */
+export function buildAll(swf, page = 0, pageSize = 20) {
     const library = new Library(swf)
     const area = ([xmin, xmax, ymin, ymax]) => (xmax - xmin) * (ymax - ymin)
 
@@ -731,9 +734,12 @@ export function buildAll(swf) {
         .filter(s => s.id !== 0 && library.bounds.get(s.id))
         .sort((a, b) => area(library.bounds.get(b.id)) - area(library.bounds.get(a.id)))
 
-    const grid = library.grid(symbols.map(s => library.freeze(s.id, 0)))
+    const pages = Math.max(1, Math.ceil(symbols.length / pageSize))
+    const shown = symbols.slice(page * pageSize, (page + 1) * pageSize)
 
-    grid.cells.forEach(cell => Object.assign(cell, symbols[cell.index]))
+    const grid = library.grid(shown.map(s => library.freeze(s.id, 0)))
 
-    return grid
+    grid.cells.forEach(cell => Object.assign(cell, shown[cell.index]))
+
+    return { ...grid, pages }
 }

@@ -46,6 +46,11 @@ function scan(dir = root) {
         .map(entry => ({ label: label(entry.name), children: scan(path.join(dir, entry.name)) }))
         .filter(folder => folder.children.length)
 
+    // Files directly in assets/swf get a group of their own, listed after the folders
+    if (dir === root) {
+        return files.length ? [...folders, { label: 'Other Files', children: files }] : folders
+    }
+
     // Loose files first, then folders
     return [...files, ...folders]
 }
