@@ -40,6 +40,35 @@ let config = {
                 middleware: (req, res) => res.json(require('./utils/swf-list')())
             })
 
+            // SWF viewer marks, kept in swf-marks.txt
+            middlewares.unshift({
+                name: 'swf-marks',
+                path: '/swf-marks',
+                middleware: (req, res) => {
+                    const marks = require('./utils/swf-marks')
+
+                    if (req.method === 'GET') {
+                        return res.json(marks.read())
+                    }
+
+                    if (req.method !== 'POST') {
+                        return res.sendStatus(405)
+                    }
+
+                    let body = ''
+
+                    req.setEncoding('utf8')
+                    req.on('data', chunk => body += chunk)
+                    req.on('end', () => {
+                        try {
+                            res.json(marks.update(JSON.parse(body)))
+                        } catch (error) {
+                            res.status(400).json({ error: error.message })
+                        }
+                    })
+                }
+            })
+
             return middlewares
         },
         proxy: [

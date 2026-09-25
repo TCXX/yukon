@@ -29,6 +29,16 @@
             #cells { position: absolute; inset: 0; pointer-events: none; }
             #cells a { position: absolute; pointer-events: auto; padding: 0; box-sizing: border-box; }
             #cells a:hover { outline: 2px solid #8cf; outline-offset: -2px; background: rgba(136, 204, 255, 0.1); }
+            .row { display: flex; align-items: center; }
+            .row a { flex: 1; min-width: 0; }
+            button.mark { flex-shrink: 0; padding: 0 3px; background: none; border: 0; color: #eee; font-size: 12px; cursor: pointer; opacity: 0.15; }
+            .row button.mark:last-child { margin-right: 8px; }
+            .row:hover button.mark, #cells .marks:hover button.mark { opacity: 0.5; }
+            button.mark.on { opacity: 1 !important; }
+            button.mark.impression.on { color: #7d7; }
+            button.mark.favorite.on { color: #fc4; }
+            #cells .marks { position: absolute; z-index: 2; pointer-events: auto; display: flex; background: rgba(0, 0, 0, 0.5); border-radius: 0 0 0 4px; }
+            #cells .marks button.mark { opacity: 0.4; padding: 1px 4px; }
             #player .error { margin: 16px; color: #f88; }
             #player .hint { margin: 16px; color: #888; }
             #player ruffle-player { width: 100%; height: 100%; }
@@ -56,7 +66,11 @@
             import { readSwf, hideLayers, symbolClasses, scenes, frames, buildScene, buildElement, buildFrames, buildAll } from './utils/swf-stage.js'
 
             const params = new URLSearchParams(location.search)
-            const tree = await fetch('assets/swf/swf.json').then(res => res.json())
+            const encodePath = source => source.split('/').map(encodeURIComponent).join('/')
+            const [tree, loadedMarks] = await Promise.all([
+                fetch('assets/swf/swf.json').then(res => res.json()),
+                fetch('swf-marks').then(res => res.ok ? res.json() : null).catch(() => null)
+            ])
             const leaves = nodes => nodes.flatMap(node => node.children ? leaves(node.children) : [node])
             // Nothing is loaded until a file is picked
             const file = params.get('file')
@@ -75,6 +89,104 @@
                 a.title = title || text
                 a.classList.toggle('active', active)
                 parent.appendChild(a)
+
+                return a
+            }
+
+            // Files and elements can be marked "impression" (I remember it from the game) and "favorite" (I'll revisit it)
+            // Marks are saved to swf-marks.txt by the dev server; without it they can't be loaded or changed
+            let marks = loadedMarks
+
+            const markTypes = [
+                { mark: 'impression', text: '✓', title: 'Impression: I have an impression of it from the game' },
+                { mark: 'favorite', text: '★', title: "Favorite: I'll revisit it" }
+            ]
+
+            // Files are identified by the start of their SHA-256, so marks follow them when renamed
+            const hashes = new Map()
+
+            async function digest(buffer) {
+                const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', buffer))
+
+                return [...bytes.slice(0, 8)].map(b => b.toString(16).padStart(2, '0')).join('')
+            }
+
+            async function hashOf(source) {
+                if (!hashes.has(source)) {
+                    const res = await fetch(`assets/swf/${encodePath(source)}`)
+
+                    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+
+                    hashes.set(source, await digest(await res.arrayBuffer()))
+                }
+
+                return hashes.get(source)
+            }
+
+            // Files not hashed yet (not loaded or marked in this page) are matched by path
+            const findMark = ({ file, id = null }) => marks?.find(entry => entry.id === id
+                && (hashes.has(file) ? entry.hash === hashes.get(file) : entry.file === file))
+
+            const markButtons = []
+
+            function refreshMarks() {
+                markButtons.forEach(({ button, target, mark }) => button.classList.toggle('on', !!findMark(target)?.marks.includes(mark)))
+            }
+
+            async function toggleMark(target, mark) {
+                try {
+                    const hash = await hashOf(target.file)
+                    const current = findMark(target)?.marks || []
+                    const next = current.includes(mark) ? current.filter(m => m !== mark) : [...current, mark]
+                    const res = await fetch('swf-marks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ hash, file: target.file, id: target.id ?? null, name: target.name ?? null, marks: next })
+                    })
+
+                    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText)
+
+                    marks = await res.json()
+                } catch (error) {
+                    alert(`Could not save mark: ${error.message}`)
+                }
+
+                refreshMarks()
+            }
+
+            // Adds a toggle button for each mark to parent, for a file ({ file }) or an element ({ file, id, name })
+            function addMarks(parent, target) {
+                if (!marks) return
+
+                const entry = findMark(target)
+
+                for (const { mark, text, title } of markTypes) {
+                    const button = document.createElement('button')
+
+                    button.className = `mark ${mark}`
+                    button.classList.toggle('on', !!entry?.marks.includes(mark))
+                    button.textContent = text
+                    button.title = title
+                    button.addEventListener('click', e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        toggleMark(target, mark)
+                    })
+                    parent.appendChild(button)
+                    markButtons.push({ button, target, mark })
+                }
+            }
+
+            // A link with mark buttons beside it; filters hide the whole row
+            function markableLink(parent, target, ...args) {
+                const row = document.createElement('div')
+
+                row.className = 'row'
+                parent.appendChild(row)
+
+                const a = link(row, ...args)
+
+                addMarks(row, target)
 
                 return a
             }
@@ -107,7 +219,7 @@
             function addFiles(parent, nodes, prefix = '') {
                 for (const node of nodes) {
                     if (!node.children) {
-                        link(parent, node.label, href(node.source), node.source === file, node.source)
+                        markableLink(parent, { file: node.source }, node.label, href(node.source), node.source === file, node.source)
                         continue
                     }
 
@@ -149,9 +261,9 @@
             nav.querySelector('input').addEventListener('input', e => {
                 const query = e.target.value.toLowerCase()
 
-                fileLinks.forEach(a => a.hidden = !(a.textContent + a.title).toLowerCase().includes(query))
+                fileLinks.forEach(a => a.parentElement.hidden = !(a.textContent + a.title).toLowerCase().includes(query))
                 folders.forEach(details => {
-                    const matches = !!details.querySelector('a:not([hidden])')
+                    const matches = !!details.querySelector('.row:not([hidden])')
 
                     details.hidden = !matches
                     details.open = query ? matches : openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
@@ -179,17 +291,20 @@
                 throw error
             }
 
-            const path = file.split('/').map(encodeURIComponent).join('/')
             let swf
 
             try {
-                const res = await fetch(`assets/swf/${path}`)
+                const res = await fetch(`assets/swf/${encodePath(file)}`)
 
                 if (!res.ok) {
                     throw new Error(`${res.status} ${res.statusText}`)
                 }
 
-                swf = await readSwf(await res.arrayBuffer())
+                const buffer = await res.arrayBuffer()
+
+                hashes.set(file, await digest(buffer))
+                refreshMarks()
+                swf = await readSwf(buffer)
 
                 if (!showLayers) swf = hideLayers(swf)
             } catch (error) {
@@ -228,7 +343,7 @@
                 const { count } = frames(swf, id)
                 const text = name.split('.').pop() + (count > 1 ? ` · ${count}f` : '')
 
-                return link(views, text, href(file, id), view === String(id), `${name} (#${id})`)
+                return markableLink(views, { file, id, name }, text, href(file, id), view === String(id), `${name} (#${id})`)
             })
 
             // Multi-frame elements (catalog pages, button states, animations) can be viewed frame by frame
@@ -254,7 +369,7 @@
             document.querySelector('aside input').addEventListener('input', e => {
                 const query = e.target.value.toLowerCase()
 
-                elementLinks.forEach(a => a.hidden = !a.title.toLowerCase().includes(query))
+                elementLinks.forEach(a => a.parentElement.hidden = !a.title.toLowerCase().includes(query))
             })
 
             document.querySelector('aside .active')?.scrollIntoView({ block: 'center' })
@@ -316,18 +431,38 @@
                     ? link(cells, '', href(file, cell.id), false, `${cell.name} (#${cell.id})`)
                     : link(cells, '', href(file, view, cell.frame + 1), false, `Frame ${cell.frame + 1}`))
 
+                // Element cells get their mark buttons in the top right corner
+                const markBoxes = grid.cells.map(cell => {
+                    if (cell.frame !== undefined || !marks) return null
+
+                    const box = document.createElement('div')
+
+                    box.className = 'marks'
+                    addMarks(box, { file, id: cell.id, name: cell.name })
+                    cells.appendChild(box)
+
+                    return box
+                })
+
                 // Ruffle scales the stage to fit the player and centres it
                 const layout = () => {
                     const scale = Math.min(player.clientWidth / grid.width, player.clientHeight / grid.height)
                     const left = (player.clientWidth - grid.width * scale) / 2
                     const top = (player.clientHeight - grid.height * scale) / 2
 
-                    grid.cells.forEach((cell, i) => Object.assign(links[i].style, {
-                        left: `${left + cell.x * scale}px`,
-                        top: `${top + cell.y * scale}px`,
-                        width: `${cell.width * scale}px`,
-                        height: `${cell.height * scale}px`
-                    }))
+                    grid.cells.forEach((cell, i) => {
+                        Object.assign(links[i].style, {
+                            left: `${left + cell.x * scale}px`,
+                            top: `${top + cell.y * scale}px`,
+                            width: `${cell.width * scale}px`,
+                            height: `${cell.height * scale}px`
+                        })
+
+                        if (markBoxes[i]) Object.assign(markBoxes[i].style, {
+                            right: `${player.clientWidth - left - (cell.x + cell.width) * scale}px`,
+                            top: `${top + cell.y * scale}px`
+                        })
+                    })
                 }
 
                 layout()
