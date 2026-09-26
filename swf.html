@@ -41,6 +41,8 @@
             #cells .marks button.mark { opacity: 0.4; padding: 1px 4px; }
             #player .error { margin: 16px; color: #f88; }
             #player .hint { margin: 16px; color: #888; }
+            #player .stalled { position: absolute; z-index: 3; top: 12px; left: 50%; transform: translateX(-50%); padding: 8px 12px; background: #3a2a1a; border: 1px solid #a73; border-radius: 4px; font-size: 13px; white-space: nowrap; }
+            #player .stalled button { margin-left: 8px; }
             #player ruffle-player { width: 100%; height: 100%; }
             /* In grid views the player sits above the cells but lets clicks through, except on its unmute button */
             #player.grid ruffle-player { position: relative; z-index: 1; pointer-events: none; }
@@ -482,6 +484,50 @@
                 autoplay: 'on',
                 splashScreen: false
             })
+
+            // Ruffle renders on the main thread, so a heavy view can keep the page busy indefinitely. A single render
+            // step can't be interrupted, but a timer runs between steps: it measures how late it fires to tell how much
+            // of the recent time the page was blocked, and suspends the player once that is too much
+            const watchdog = { tick: 200, window: 4000, maxBlocked: 3000 }
+            const blocked = [] // [time, ms blocked] per late tick
+            let last = performance.now()
+
+            const timer = setInterval(() => {
+                const now = performance.now()
+
+                // Timers in background tabs are throttled, which would look like blocking
+                if (document.hidden) {
+                    blocked.length = 0
+                    last = now
+
+                    return
+                }
+
+                blocked.push([now, Math.max(0, now - last - watchdog.tick)])
+                last = now
+
+                while (blocked[0][0] < now - watchdog.window) blocked.shift()
+
+                const total = blocked.reduce((sum, [, ms]) => sum + ms, 0)
+
+                if (total < watchdog.maxBlocked) return
+
+                clearInterval(timer)
+                player.ruffle().suspend()
+
+                const notice = document.createElement('div')
+                const resume = document.createElement('button')
+
+                notice.className = 'stalled'
+                notice.textContent = `Rendering paused: this view kept the page busy for ${(total / 1000).toFixed(1)}s`
+                resume.textContent = 'Resume anyway'
+                resume.addEventListener('click', () => {
+                    notice.remove()
+                    player.ruffle().resume()
+                })
+                notice.appendChild(resume)
+                container.appendChild(notice)
+            }, watchdog.tick)
         </script>
     </body>
 
