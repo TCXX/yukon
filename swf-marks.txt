@@ -1,6 +1,36 @@
 # SWF viewer marks, edited from swf.html
 # impression: I have an impression of it from the game; favorite: I'll revisit it
 # marks	sha256	file	element
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#9 mmo.buddytree.view.panel.button.DreamAddFood
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#34 mmo.buddytree.view.panel.cellrenderer.ContributorCell
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#38 mmo.buddytree.view.panel.button.AddFood
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#42 mmo.buddytree.view.panel.button.AddWater
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#91 mmo.buddytree.view.panel.progressbar.ProgressBarWater
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#105 mmo.buddytree.view.panel.progressbar.ProgressBarFood
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#145 mmo.buddytree.view.panel.infopanel.SmallBTree
+impression	2a894a4cebb97b63	【友情树界面】buddytreeview~16051976133325.swf	#146 mmo.buddytree.view.panel.infopanel.DreamInfoPanel
+impression	b817695c9a2106d7	【可变表情食人花】b80120090801~0.swf	
+impression	1cbd22606670cc3e	【奇幻糖果友情树】b10220100404~16051976133325.swf	#4 b10220100404_B
+impression	f586e46255ea8d8e	【奥比岛模型】b50020100912~0.swf	
+impression	1328109450eaa8f8	【小精灵床】b10220090503~0.swf	
+impression	ab5401f984b633c3	【彩虹秋千座椅】b10120090701~0.swf	
+impression	bb97845dbe362803	【心愿树】b50020100628~0.swf	
+impression	6e852e88690d945d	【摇钱树】e70120100101~24051695950901.swf	
+impression	6e852e88690d945d	【摇钱树】e70120100101~24051695950901.swf	#90 e70120100101_fla.nnntrq_60
+impression	6e852e88690d945d	【摇钱树】e70120100101~24051695950901.swf	#153 CashcowPanel
+impression	6e852e88690d945d	【摇钱树】e70120100101~24051695950901.swf	#161 e70120100101_fla.mjmyeuw_8
+impression	c61a259995882565	【狮首鱼尾喷泉】b50020100602~0.swf	
+impression	4fba4fe87472bac5	【穿越古井】b50020110601~0.swf	
+impression,favorite	f3dddb636e370f44	【红宝石魔力树】e50020101101~151105.swf	#172 e50020101101_C
+impression	eb06df44456760e3	【紫水晶】b50020091213~0.swf	
+impression	83a7dee325f98f07	【蘑菇地灯】b20620090403~0.swf	
+impression	d1d31efe8a238933	【远征军英勇雕像】b50020090701~0.swf	
+impression	f434d6b4c67b7df2	【食人花合影相框】photo~0.swf	
+impression,favorite	f434d6b4c67b7df2	【食人花合影相框】photo~0.swf	#425 mmo.app.photo.PhotoViewPanel
+favorite	f434d6b4c67b7df2	【食人花合影相框】photo~0.swf	#449 mmo.app.photo.PhotoPanel
+impression	94b80ac794efd266	【食人花沙发】b10120090740~0.swf	
+impression	f8b3e0ee30a9c4a2	【魔法猫尾草】b10420131108~0.swf	
+impression	20d2321a8805aebd	【龙舟小屋】b60020090501~0.swf	
 impression	914bf35081ca5e3d	#现存npc文件（icon）/babate (1).swf	
 impression	0eee1745068c3197	#现存npc文件（icon）/myself.swf	
 impression	f14941d0179ec18d	七色花任务（经典）丨sevenflowers.swf	
@@ -33,7 +63,6 @@ impression,favorite	f8784b553510261f	奥比岛UI/家园设计（经典）丨hous
 impression	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#655 mmo.avatar.OtherUserCard
 impression,favorite	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#747 mmo.avatar.call.CallPetPanel
 impression	9464977041d18638	奥比岛小屋/b60020090313_0.swf	
-impression	20d2321a8805aebd	奥比岛小屋/b60020090501_0.swf	
 favorite	4fde5295f24d2bcb	奥比岛小屋/b60020090707_0.swf	#81 b60020090707_fla.Owner_35
 impression	fa2ffb952019f831	奥比岛小屋/b60020090805_0.swf	
 impression	1340918cb575ff68	奥比岛小屋/x60020100302_0.swf	
@@ -360,8 +389,6 @@ impression	37d2652e64d2a486	杂物百宝箱/经典精灵丨pet_pet.swf	#196 mmo.
 favorite	37d2652e64d2a486	杂物百宝箱/经典精灵丨pet_pet.swf	#447 mmo.pet.PetBody2
 impression	20d95244e3d3b472	杂物百宝箱/老场景照片丨oldscenephoto_19070478623111.swf	#353 mmo.app.oldscenephoto.Camera
 impression	7e6e17cf6771b815	杂物百宝箱/赏金猎人任务丨huntertask.swf	#27 mmo.app.huntermail.HunterLetter
-impression,favorite	f434d6b4c67b7df2	杂物百宝箱/食人花合影相框丨photo.swf	#425 mmo.app.photo.PhotoViewPanel
-favorite	f434d6b4c67b7df2	杂物百宝箱/食人花合影相框丨photo.swf	#449 mmo.app.photo.PhotoPanel
 favorite	74baa8bbbb2b4f9d	杂物百宝箱/魔法噜噜机+魔力转化机丨produce.swf	#352 mmo.produce.petproduce.PetProducePanel
 impression	e2409e6174fc931f	港口.swf	
 impression	e2409e6174fc931f	港口.swf	#42 mmo.scene.port.CombineShip
