@@ -650,6 +650,56 @@ class Library {
         return frozen
     }
 
+    /**
+     * Returns a character id showing `id` still: stopped on its first frame, along with every sprite
+     * nested inside it, so nothing keeps animating. `id` itself is returned when nothing needs stopping.
+     */
+    still(id, seen = new Map()) {
+        if (seen.has(id)) return seen.get(id)
+
+        seen.set(id, id) // guard against recursion
+
+        const tag = spriteDef(this.swf, id)
+
+        if (!tag) return id
+
+        const body = []
+        let changed = u16(tag.payload, 2) > 1
+
+        for (const { code, payload, raw } of iterTags(tag.payload, 4)) {
+            if (code === END || code === SHOW_FRAME) break
+
+            if (code === PLACE_OBJECT_2 || code === PLACE_OBJECT_3) {
+                const { id: child, idPos } = parsePlace(code, payload)
+                const stillChild = child === null ? child : this.still(child, seen)
+
+                if (stillChild !== child) {
+                    const patched = payload.slice()
+
+                    patched[idPos] = stillChild & 0xff
+                    patched[idPos + 1] = stillChild >> 8
+                    body.push(encodeTag(code, patched))
+                    changed = true
+
+                    continue
+                }
+            }
+
+            body.push(raw)
+        }
+
+        if (!changed) return id
+
+        const frozen = this.nextId++
+        const payload = spritePayload(frozen, 1, [...body, encodeTag(SHOW_FRAME, new Uint8Array()), encodeTag(END, new Uint8Array())])
+
+        this.tags.push(encodeTag(DEFINE_SPRITE, payload))
+        this.bounds.defs.set(frozen, { code: DEFINE_SPRITE, payload })
+        seen.set(id, frozen)
+
+        return frozen
+    }
+
     /** One character on a stage sized to fit it. */
     single(id, padding = 10) {
         const [xmin, xmax, ymin, ymax] = this.bounds.get(id) || this.swf.stage
@@ -709,20 +759,27 @@ export function buildElement(swf, id, frame = null) {
     return library.single(frame === null ? id : library.freeze(id, frame))
 }
 
-/** Every frame of an element side by side, e.g. all the pages of a catalog. Cells have the `frame` they show. */
-export function buildFrames(swf, id) {
+/**
+ * Frames of an element side by side, e.g. all the pages of a catalog. Cells have the `frame` they show.
+ * Only one page of `pageSize` frames is placed, like `buildAll`. Returns the page count as `pages`.
+ */
+export function buildFrames(swf, id, page = 0, pageSize = 20) {
     const library = new Library(swf)
     const { count } = frames(swf, id)
 
-    const grid = library.grid(Array.from({ length: count }, (_, frame) => library.freeze(id, frame)))
+    const pages = Math.max(1, Math.ceil(count / pageSize))
+    const first = page * pageSize
+    const shown = Array.from({ length: Math.max(0, Math.min(pageSize, count - first)) }, (_, i) => first + i)
 
-    grid.cells.forEach(cell => cell.frame = cell.index)
+    const grid = library.grid(shown.map(frame => library.freeze(id, frame)))
 
-    return grid
+    grid.cells.forEach(cell => cell.frame = shown[cell.index])
+
+    return { ...grid, pages }
 }
 
 /**
- * Exported elements laid out in a grid, largest first, each stopped on its first frame. Cells have the element's `id` and `name`.
+ * Exported elements laid out in a grid, largest first, each stopped on its first frame (nested sprites included). Cells have the element's `id` and `name`.
  * Only one page of `pageSize` elements is placed, since rendering hundreds at once is slow. Returns the page count as `pages`.
  */
 export function buildAll(swf, page = 0, pageSize = 20) {
@@ -737,7 +794,9 @@ export function buildAll(swf, page = 0, pageSize = 20) {
     const pages = Math.max(1, Math.ceil(symbols.length / pageSize))
     const shown = symbols.slice(page * pageSize, (page + 1) * pageSize)
 
-    const grid = library.grid(shown.map(s => library.freeze(s.id, 0)))
+    // Nested sprites are stopped too, as a page full of looping animations is slow to render
+    const seen = new Map()
+    const grid = library.grid(shown.map(s => library.still(s.id, seen)))
 
     grid.cells.forEach(cell => Object.assign(cell, shown[cell.index]))
 

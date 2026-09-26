@@ -1,9 +1,13 @@
 # SWF viewer marks, edited from swf.html
 # impression: I have an impression of it from the game; favorite: I'll revisit it
 # marks	sha256	file	element
+impression	914bf35081ca5e3d	#现存npc文件（icon）/babate (1).swf	
+impression	0eee1745068c3197	#现存npc文件（icon）/myself.swf	
 impression	f14941d0179ec18d	七色花任务（经典）丨sevenflowers.swf	
 impression	f14941d0179ec18d	七色花任务（经典）丨sevenflowers.swf	#103 mmo.sevenflowers.TaskPanel
 impression	f14941d0179ec18d	七色花任务（经典）丨sevenflowers.swf	#159 mmo.sevenflowers.SuccessPanel
+impression	534be8f838cf243b	中国特产图鉴丨furnitureapp_keepsakebook.swf	
+impression	add6c349a706a34b	卡利小岛/成就面板丨buildisland_achievement.swf	
 impression	d59e839da3600cad	变异动物图鉴/spriteforest4~0.swf	
 impression	142c446377ba826a	变异动物图鉴/spriteforest5~0.swf	
 impression	2ad4721b335e36b4	变异动物图鉴/spriteforest6~0.swf	
@@ -28,9 +32,45 @@ impression	b0956b7ded75ed9e	奥比岛UI/家园UI（经典版）丨houseimp.swf	#
 impression,favorite	f8784b553510261f	奥比岛UI/家园设计（经典）丨housedesign.swf	#241 mmo.housedesign.HouseDesigner
 impression	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#655 mmo.avatar.OtherUserCard
 impression,favorite	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#747 mmo.avatar.call.CallPetPanel
+impression	9464977041d18638	奥比岛小屋/b60020090313_0.swf	
+impression	20d2321a8805aebd	奥比岛小屋/b60020090501_0.swf	
+favorite	4fde5295f24d2bcb	奥比岛小屋/b60020090707_0.swf	#81 b60020090707_fla.Owner_35
+impression	fa2ffb952019f831	奥比岛小屋/b60020090805_0.swf	
+impression	1340918cb575ff68	奥比岛小屋/x60020100302_0.swf	
+impression	de5a6b9e2cb9dee3	奥比岛小屋/x60020100303_0.swf	
+impression	662ce6fc8cd9a7da	奥比岛小屋/x60020100402_0.swf	
+impression	198cc120b7ee17c1	奥比岛小屋/x60020100501_0.swf	
+impression	c6b7203beacda0e8	奥比岛小屋/x60020100502_0.swf	
+impression	7c529258fac0673c	奥比岛小屋/x60020100601_0.swf	
+impression	fcfd7b74fa6f3c0e	奥比岛小屋/x60020100602_0.swf	
+impression	6da829ae6213b468	奥比岛小屋/x60020100603_0.swf	
+impression	f3549543dca8fc2a	奥比岛小屋/x60020100604_0.swf	
+impression	01c79cb8df9c9202	奥比岛小屋/x60020100605_0.swf	
+impression	72c05708dd627344	奥比岛小屋/x60020100606_0.swf	
+impression	f395866ab5fcce7f	奥比岛小屋/x60020100607_0.swf	
+impression	eb61b62206061126	奥比岛小屋/x60020100608_0.swf	
+impression	0c1b78cb0c118c17	奥比岛小屋/x60020100901_0.swf	
+impression	8ab4e29eac3628fb	奥比岛小屋/x60020100902_0.swf	
+impression	22fec0bcf9928710	奥比岛小屋/x60020100903_0.swf	
+impression	ad156473f8893604	奥比岛小屋/x60020100904_0.swf	
 impression,favorite	06a08aedbb8d8f0c	妖精森林丨party5.swf	
 impression,favorite	8e66ce5fe191422c	宝石大厦丨businessmansion.swf	
 impression	ef5fb1bb67f412d1	小奥比孵精灵蛋动作（动画）.swf	
+impression	48fd27a4e4bea625	小屋内部丨houseskinview/b60020081101.swf	
+impression	1f628221f19641ff	小屋内部丨houseskinview/b60020081102.swf	
+impression	e2da3d2b42319551	小屋内部丨houseskinview/b60020081209.swf	
+impression	212ff34c3fa16207	小屋内部丨houseskinview/b60020090313.swf	
+impression	6e0b657189466d8e	小屋内部丨houseskinview/b60020090501.swf	
+impression	4f9550801b368312	小屋内部丨houseskinview/b60020090701.swf	
+impression	fa1729685259ebd6	小屋内部丨houseskinview/b60020090702.swf	
+impression	9df96b0b56c8ad44	小屋内部丨houseskinview/b60020090707.swf	
+impression	d1fe3d54cca939dc	小屋内部丨houseskinview/b60020090709.swf	
+impression	97c6dbb997d22d57	小屋内部丨houseskinview/b60020090710.swf	
+impression	1714056bb1838a8b	小屋内部丨houseskinview/b60020090802.swf	
+impression	e582cca2d8982b3c	小屋内部丨houseskinview/b60020090805.swf	
+impression	1dadab8ebd016b49	小屋内部丨houseskinview/b60020090806.swf	
+impression	ed497b604b06601c	小屋内部丨houseskinview/b60020091003.swf	
+impression	f07798e0a17771a8	小屋内部丨houseskinview/b60020091101.swf	
 impression	c13d223cce8b084d	小精灵衣服/skinviewold100209~0.swf	#9 p30120091202_F
 impression	c13d223cce8b084d	小精灵衣服/skinviewold100209~0.swf	#83 p30120090601_F
 impression	c13d223cce8b084d	小精灵衣服/skinviewold100209~0.swf	#101 p10420080802_F
@@ -357,6 +397,7 @@ impression	bc732388b7630949	游戏/藏宝岛丨treasureisland.swf	#44 mmo.ti.Nex
 impression	2314237b278176ec	游戏/见习小医生丨game_petsnurse.swf	
 impression	610fae888e0fff62	游戏/跳火圈丨jumpfirecircle.swf	
 impression	83a3372332616bec	游戏/遗忘之岛猴子香蕉丨monkeybanana~0.swf	
+impression	86132018fae8f0a2	环球特产图鉴丨furnitureapp_globalkeepsakebook.swf	
 impression	0fe0b825b922b610	生存大挑战（鳄鱼嘴巴）.swf	
 impression	b00f287991d15a3b	礼品册/catalog_giftcatalog2.swf	#3 mmo.materials.Gift_Baozhen
 impression	dcfb0adcd3588377	老场景丨scene/mazeend.swf	#364 mmo.scene.MazeEnd
