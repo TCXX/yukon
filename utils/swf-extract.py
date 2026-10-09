@@ -207,7 +207,7 @@ def parse_place(code, payload):
     else:
         flags, flags2, q = payload[0], payload[1], 4
 
-        if flags2 & 0x08 or (flags2 & 0x10 and flags & 0x02):  # HasClassName
+        if flags2 & 0x08:  # HasClassName (players ignore the spec's HasImage + HasCharacter case)
             q = payload.index(b'\0', q) + 1
 
     char_id = matrix = None

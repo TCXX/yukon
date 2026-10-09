@@ -35,6 +35,7 @@ const DO_ABC = 82
 const DEFINE_SHAPE_4 = 83
 const DEFINE_MORPH_SHAPE_2 = 84
 const DEFINE_SCENE_AND_FRAME_LABEL_DATA = 86
+const DEFINE_BITS_JPEG_4 = 90
 const START_SOUND_2 = 89
 
 const CODE = new Set([DO_ABC, DO_ABC_LEGACY, SYMBOL_CLASS, DO_ACTION])
@@ -52,6 +53,9 @@ const RECT_TAGS = new Set([
     DEFINE_TEXT, DEFINE_TEXT_2, DEFINE_EDIT_TEXT,
     DEFINE_MORPH_SHAPE, DEFINE_MORPH_SHAPE_2
 ])
+
+// Bitmap tags, mapped to where the image data starts (lossless ones store their size up front instead)
+const BITMAP_TAGS = new Map([[6, 2], [21, 2], [35, 6], [DEFINE_BITS_JPEG_4, 8], [20, null], [36, null]])
 
 // Tags that define a character, with its id first
 const DEFINE_TAGS = new Set([2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91])
@@ -216,7 +220,78 @@ export async function readSwf(buffer) {
     const header = body.subarray(0, rectEnd + 4) // rect + frame rate + frame count
     const tags = [...iterTags(body, rectEnd + 4)]
 
+    wrapBitmaps(tags)
+
     return { version: data[3], header, stage, frameCount: u16(header, rectEnd + 2), tags }
+}
+
+/**
+ * Ruffle draws nothing for a bitmap character placed on a timeline (Flash games normally wrap them in
+ * a Bitmap from code), so each bitmap is moved to a new id and its own id becomes a shape filled with it.
+ * Placements and symbol classes keep working without being rewritten. Changes `tags` in place.
+ */
+function wrapBitmaps(tags) {
+    let id = nextId(tags)
+
+    for (let i = 0; i < tags.length; i++) {
+        const { code, payload } = tags[i]
+        const rect = BITMAP_TAGS.has(code) && bitmapBounds(code, payload)
+
+        if (!rect) continue
+
+        const shapeId = u16(payload, 0)
+        const bitmapId = id++
+
+        payload[0] = bitmapId & 0xff // payload is a view of raw, so this renames the tag itself
+        payload[1] = bitmapId >> 8
+
+        const shape = bitmapShape(shapeId, bitmapId, rect[1], rect[3])
+        tags.splice(++i, 0, { code: DEFINE_SHAPE_3, payload: shape, raw: encodeTag(DEFINE_SHAPE_3, shape) })
+    }
+}
+
+/** DefineShape3 payload of a width x height (twips) rectangle filled with a bitmap at 1:1. */
+function bitmapShape(id, bitmapId, width, height) {
+    const w = new BitWriter()
+
+    w.write(id & 0xff, 8) // little-endian id
+    w.write(id >> 8, 8)
+    w.writeSigned([0, width, 0, height])
+    while (w.bits.length % 8) w.write(0, 1)
+
+    w.write(1, 8) // one fill style
+    w.write(0x41, 8) // clipped bitmap fill
+    w.write(bitmapId & 0xff, 8) // little-endian id
+    w.write(bitmapId >> 8, 8)
+    w.write(1, 1) // matrix scaling bitmap pixels to twips
+    w.writeSigned([20 * 65536, 20 * 65536])
+    w.write(0, 1)
+    w.writeSigned([0, 0])
+    while (w.bits.length % 8) w.write(0, 1)
+
+    w.write(0, 8) // no line styles
+    w.write(1, 4) // fill bits
+    w.write(0, 4) // line bits
+
+    w.write(0b000101, 6) // style change: fill style 1, move to
+    w.writeSigned([0, 0])
+    w.write(1, 1)
+
+    // Straight edges around the rectangle
+    for (const [dx, dy] of [[width, 0], [0, height], [-width, 0], [0, -height]]) {
+        const delta = dx || dy
+        const n = Math.max(2, Math.abs(delta).toString(2).length + 1)
+
+        w.write(0b11, 2)
+        w.write(n - 2, 4)
+        w.write(0, 1) // not a general line
+        w.write(dx ? 0 : 1, 1) // vertical?
+        w.write(delta < 0 ? 2 ** n + delta : delta, n)
+    }
+
+    w.write(0, 6) // end of shape
+
+    return w.bytes()
 }
 
 export function symbolClasses(tags) {
@@ -274,7 +349,9 @@ function parsePlace(code, payload) {
         place.depth = u16(payload, 2)
         q = 4
 
-        if (flags2 & 0x08 || (flags2 & 0x10 && flags & 0x02)) { // HasClassName
+        // HasClassName. The spec also implies a class name for HasImage + HasCharacter, but encoders and
+        // players don't write or read one, e.g. skin items that place a bitmap by id
+        if (flags2 & 0x08) {
             q = payload.indexOf(0, q) + 1
         }
     }
@@ -297,6 +374,50 @@ function parsePlace(code, payload) {
     }
 
     return place
+}
+
+const u16be = (data, pos) => (data[pos] << 8) | data[pos + 1]
+const u32be = (data, pos) => ((data[pos] << 24) | (data[pos + 1] << 16) | (data[pos + 2] << 8) | data[pos + 3]) >>> 0
+
+/** [width, height] in pixels of an embedded JPEG, PNG or GIF, or null if unrecognised. */
+function imageSize(data, pos) {
+    if (data[pos] === 0x89 && data[pos + 1] === 0x50) { // PNG
+        return [u32be(data, pos + 16), u32be(data, pos + 20)]
+    }
+
+    if (data[pos] === 0x47 && data[pos + 1] === 0x49) { // GIF
+        return [u16(data, pos + 6), u16(data, pos + 8)]
+    }
+
+    // JPEG: walk the markers to a start-of-frame
+    while (pos + 9 < data.length) {
+        if (data[pos] !== 0xff) {
+            pos++
+            continue
+        }
+
+        const marker = data[pos + 1]
+
+        if (marker === 0xd8 || marker === 0xd9 || marker === 0xff || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+            pos += marker === 0xff ? 1 : 2
+            continue
+        }
+
+        if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+            return [u16be(data, pos + 7), u16be(data, pos + 5)]
+        }
+
+        pos += 2 + u16be(data, pos + 2)
+    }
+
+    return null
+}
+
+function bitmapBounds(code, payload) {
+    const start = BITMAP_TAGS.get(code)
+    const size = start === null ? [u16(payload, 3), u16(payload, 5)] : imageSize(payload, start)
+
+    return size && size[0] && size[1] ? [0, size[0] * 20, 0, size[1] * 20] : null
 }
 
 /** Computes the visual bounds (in twips) of library characters. */
@@ -557,7 +678,7 @@ function libraryTags(swf) {
     return swf.tags.filter(t => !CODE.has(t.code) && !TIMELINE.has(t.code)).map(t => t.raw)
 }
 
-/** A single scene of the main timeline, with the code stripped out. */
+/** A single scene of the main timeline, with the code stripped out. `empty` is set when nothing is ever on its stage. */
 export function buildScene(swf, { start, end }) {
     const body = []
     let frame = 0
@@ -578,7 +699,10 @@ export function buildScene(swf, { start, end }) {
 
     const rect = swf.header.subarray(0, swf.header.length - 4)
 
-    return writeSwf(swf.version, rect, frameRate(swf), end - start, body)
+    // The scene's display list is measured like a sprite's (whose payload starts with its id and frame count)
+    const empty = !new Bounds(swf.tags).sprite(concat([new Uint8Array(4), ...body]))
+
+    return { data: writeSwf(swf.version, rect, frameRate(swf), end - start, body), empty }
 }
 
 function spritePayload(id, frameCount, tags) {
@@ -700,15 +824,16 @@ class Library {
         return frozen
     }
 
-    /** One character on a stage sized to fit it. */
+    /** One character on a stage sized to fit it. `empty` is set when it has nothing to draw. */
     single(id, padding = 10) {
+        const empty = !this.bounds.get(id)
         const [xmin, xmax, ymin, ymax] = this.bounds.get(id) || this.swf.stage
         const width = (xmax - xmin) / 20 + padding * 2
         const height = (ymax - ymin) / 20 + padding * 2
 
         const body = [...this.tags, place(1, id, padding - xmin / 20, padding - ymin / 20), encodeTag(SHOW_FRAME, new Uint8Array())]
 
-        return writeSwf(this.swf.version, encodeRect(width, height), frameRate(this.swf), 1, body)
+        return { data: writeSwf(this.swf.version, encodeRect(width, height), frameRate(this.swf), 1, body), empty }
     }
 
     /**
@@ -718,8 +843,16 @@ class Library {
     grid(ids, padding = 10) {
         const items = ids.map((id, index) => ({ id, index, rect: this.bounds.get(id) })).filter(item => item.rect)
 
-        const cellWidth = this.swf.stage[1] / 20 / 2
-        const cellHeight = this.swf.stage[3] / 20 / 2
+        // Cells fit most characters (the 75th percentile), so small ones (e.g. avatar items) aren't lost because of
+        // one large outlier such as a sheet of every pose, which is scaled down instead. Not tied to the stage size,
+        // as skin files have a stage smaller than their items
+        const typical = (min, max) => {
+            const sizes = items.map(({ rect }) => (rect[max] - rect[min]) / 20).sort((a, b) => a - b)
+
+            return Math.max(1, sizes[Math.floor((sizes.length - 1) * 0.75)] || 0) + padding * 2
+        }
+        const cellWidth = typical(0, 1)
+        const cellHeight = typical(2, 3)
         const columns = Math.max(1, Math.ceil(Math.sqrt(items.length)))
         const rows = Math.max(1, Math.ceil(items.length / columns))
 
