@@ -135,7 +135,7 @@
             const findMark = ({ file, id = null }) => marks?.find(entry => entry.id === id
                 && (hashes.has(file) ? entry.hash === hashes.get(file) : entry.file === file))
 
-            const markButtons = []
+            let markButtons = []
 
             function refreshMarks() {
                 markButtons.forEach(({ button, target, mark }) => button.classList.toggle('on', !!findMark(target)?.marks.includes(mark)))
@@ -207,6 +207,7 @@
             }
 
             const nav = document.querySelector('nav')
+            const filterInput = nav.querySelector('input')
 
             heading(nav, `Files (${leaves(tree).length})`)
 
@@ -223,9 +224,58 @@
 
             const openFolders = new Set(saved?.open)
 
-            // Folders become collapsible sections, opened when they contain the current file or were left open
-            function addFiles(parent, nodes, prefix = '') {
+            // The list has tens of thousands of files, so a folder's rows are only built when it's first opened,
+            // and long runs of files are split into groups of this many
+            const groupSize = 500
+
+            function annotate(nodes) {
                 for (const node of nodes) {
+                    if (node.children) {
+                        annotate(node.children)
+                        node.count = node.children.reduce((sum, child) => sum + (child.count ?? 1), 0)
+                        node.active = node.children.some(child => child.active || child.source === file)
+                    } else {
+                        node.search = (node.label + node.source).toLowerCase()
+                    }
+                }
+            }
+
+            annotate(tree)
+
+            // The tree with only matching files, and folders that still have some
+            function filterTree(nodes, query) {
+                return nodes.flatMap(node => {
+                    if (!node.children) return node.search.includes(query) ? [node] : []
+
+                    const children = filterTree(node.children, query)
+
+                    return children.length ? [{ ...node, children, count: leaves(children).length }] : []
+                })
+            }
+
+            function groupFiles(nodes) {
+                const files = nodes.filter(node => !node.children)
+
+                if (files.length <= groupSize) return nodes
+
+                const groups = []
+
+                for (let i = 0; i < files.length; i += groupSize) {
+                    const children = files.slice(i, i + groupSize)
+
+                    groups.push({ label: `${i + 1}–${i + children.length}`, children, count: children.length, group: true,
+                        active: children.some(child => child.source === file) })
+                }
+
+                return [...groups, ...nodes.filter(node => node.children)]
+            }
+
+            // Folders become collapsible sections, opened when they contain the current file or were left open
+            // While filtering, folders with matches are opened instead, except file groups
+            function addFiles(parent, nodes, prefix = '') {
+                const query = filterInput.value
+
+                for (const node of groupFiles(nodes)) {
                     if (!node.children) {
                         markableLink(parent, { file: node.source }, node.label, href(node.source), node.source === file, node.source)
                         continue
@@ -233,18 +283,51 @@
 
                     const details = document.createElement('details')
                     const summary = document.createElement('summary')
+                    const path = prefix + node.label
+                    let built = false
 
-                    details.dataset.path = prefix + node.label
-                    summary.textContent = `${node.label} (${leaves(node.children).length})`
+                    details.dataset.path = path
+                    summary.textContent = `${node.label} (${node.count})`
                     summary.title = summary.textContent
                     details.appendChild(summary)
-                    addFiles(details, node.children, details.dataset.path + '/')
-                    details.open = openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
+                    details.addEventListener('toggle', () => {
+                        if (details.open && !built) {
+                            built = true
+                            addFiles(details, node.children, path + '/')
+                        }
+
+                        // Toggles fire after the change, so skip ones from a list a filter keystroke already replaced
+                        if (!filterInput.value && details.isConnected) {
+                            details.open ? openFolders.add(path) : openFolders.delete(path)
+                        }
+                    })
+                    details.open = query ? !node.group : openFolders.has(path) || node.active
+
+                    // Build now rather than on the toggle event, so the scroll position can be restored
+                    if (details.open) {
+                        built = true
+                        addFiles(details, node.children, path + '/')
+                    }
+
                     parent.appendChild(details)
                 }
             }
 
-            addFiles(nav, tree)
+            const files = document.createElement('div')
+
+            nav.appendChild(files)
+
+            function showFiles() {
+                const query = filterInput.value.toLowerCase()
+
+                files.replaceChildren()
+                addFiles(files, query ? filterTree(tree, query) : tree)
+
+                // Drop the mark buttons of rows that were just replaced
+                markButtons = markButtons.filter(({ button }) => button.isConnected)
+            }
+
+            showFiles()
 
             if (saved) {
                 nav.scrollTop = saved.scroll
@@ -253,30 +336,12 @@
             }
 
             addEventListener('pagehide', () => {
-                // While filtering, folders are opened by the filter, so keep the previous set
-                const open = nav.querySelector('input').value
-                    ? [...openFolders]
-                    : [...nav.querySelectorAll('details[open]')].map(details => details.dataset.path)
-
                 try {
-                    sessionStorage.setItem('swf-nav', JSON.stringify({ scroll: nav.scrollTop, open }))
+                    sessionStorage.setItem('swf-nav', JSON.stringify({ scroll: nav.scrollTop, open: [...openFolders] }))
                 } catch {}
             })
 
-            const fileLinks = [...nav.querySelectorAll('a')]
-            const folders = [...nav.querySelectorAll('details')]
-
-            nav.querySelector('input').addEventListener('input', e => {
-                const query = e.target.value.toLowerCase()
-
-                fileLinks.forEach(a => a.parentElement.hidden = !(a.textContent + a.title).toLowerCase().includes(query))
-                folders.forEach(details => {
-                    const matches = !!details.querySelector('.row:not([hidden])')
-
-                    details.hidden = !matches
-                    details.open = query ? matches : openFolders.has(details.dataset.path) || !!details.querySelector('a.active')
-                })
-            })
+            filterInput.addEventListener('input', showFiles)
 
             if (!file) {
                 const p = document.createElement('p')
