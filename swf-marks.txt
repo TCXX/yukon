@@ -1300,6 +1300,7 @@ impression	22a33ec0742efb3a	奥比岛UI/2013年登录界面丨user_login.swf	#38
 impression	23ef6c47c1ca46e1	奥比岛UI/control.swf	#172 mmo.user.info.MyInfo
 impression,favorite	23ef6c47c1ca46e1	奥比岛UI/control.swf	#756 mmo.control.ControlBar
 impression	5e464647234e7a0b	奥比岛UI/topicons/topicons (1).swf	#46 mmo.framework.task.AllTaskIconButton
+impression,favorite	7563b541dd44a7cd	奥比岛UI/养殖图标丨yzcommon.swf	
 impression	7563b541dd44a7cd	奥比岛UI/养殖图标丨yzcommon.swf	#145 mmo.yz.common.yzplant.OperatePanel
 impression	7563b541dd44a7cd	奥比岛UI/养殖图标丨yzcommon.swf	#146 mmo.yz.common.InsectIcon
 impression	7563b541dd44a7cd	奥比岛UI/养殖图标丨yzcommon.swf	#157 mmo.yz.common.yzplant.ReapMovie
@@ -1313,6 +1314,7 @@ impression,favorite	b0956b7ded75ed9e	奥比岛UI/家园UI（经典版）丨house
 impression	b0956b7ded75ed9e	奥比岛UI/家园UI（经典版）丨houseimp.swf	#148 mmo.houseimp.NeighborPanel
 impression,favorite	f8784b553510261f	奥比岛UI/家园设计（经典）丨housedesign.swf	#63 mmo.housedesign.neighbor.NeighborPanel
 impression,favorite	f8784b553510261f	奥比岛UI/家园设计（经典）丨housedesign.swf	#241 mmo.housedesign.HouseDesigner
+impression,favorite	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	
 impression	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#655 mmo.avatar.OtherUserCard
 impression,favorite	1d8585164cd696b7	奥比岛UI/形象卡丨资料卡/形象卡（经典）丨avatar.swf	#747 mmo.avatar.call.CallPetPanel
 impression,favorite	a42b2e8494f2ab64	奥比岛UI/形象卡丨资料卡/形象卡皮肤（经典）/经典绿丨customskin0.swf	
